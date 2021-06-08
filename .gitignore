@@ -1,6 +1,7 @@
 **/.pio
 **/.vscode
 **/.DS_Store
+**/output_files
 
 **/build
 **/sdkconfig

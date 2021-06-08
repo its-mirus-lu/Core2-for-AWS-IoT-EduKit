@@ -24,6 +24,7 @@ import sys
 import argparse
 import subprocess
 import os
+# from utilities.trustplatform.TrustnGO.Microchip_manifest_handler import check_and_install_policy, set_session
 
 os.environ["CRYPTOAUTHLIB_NOUSB"] = "1"
 
@@ -64,7 +65,15 @@ sys.path.append(trustplatform_aws_path)
 from helper_aws import *
 from Microchip_manifest_handler import *
 
-iot = boto3.client('iot')
+global iot
+global session
+
+def initialize_boto(profile=None, region=None):
+    global iot
+    global session
+    print("**** PROFILE "+profile)
+    session = boto3.session.Session(profile_name=profile, region_name=region)
+    iot = session.client('iot')
 
 def check_environment():
     """Checks to ensure environment is set per AWS IoT EduKit instructions.
@@ -72,6 +81,9 @@ def check_environment():
     Verifies that the AWS CLI is installed and configured. Prints
     AWS IoT endpoint address.
     """
+    global iot
+    global session
+     
     
     if sys.version_info[0] != 3 or sys.version_info[1] < 6:
         print(f"Python version {sys.version}")
@@ -88,6 +100,7 @@ def check_environment():
 
 
 def generate_signer_certificate():
+    global iot
     """Generates a x.509 certificate signed by ECDSA key
     This signer certificate is used to generate the device manifest file and helps 
     ensure the validity/ownership of the manifest contents. This signer certificate's
@@ -145,12 +158,15 @@ def generate_signer_certificate():
 
 
 def upload_manifest():
+    global iot
+    global session
     """Uses Microchip TrustPlatform to register an AWS IoT thing
     Parses through the generated manifest file, creates an AWS IoT thing
     with a thing name that is the ATECC608 secure element serial number,
     applies the device certificate (public key) that is stored in the manifest
     file, and attaches a default policy.
     """
+    set_session(session)
     check_and_install_policy('Default')
 
     for file in os.listdir("output_files"):
@@ -182,11 +198,27 @@ def main():
         required=True,
         help='Serial comm port of the Core2 for AWS IoT EduKit device')
 
+    parser.add_argument(
+        "--profile", 
+        dest='profile',
+        required=True,
+        help='AWS Profile name')
+
+    parser.add_argument(
+        "--region", 
+        dest='region',
+        required=False,
+        default='us-west-2',
+        help='AWS region name')
+
+        
+
     args = parser.parse_args()
 
     args.signer_cert = "output_files/signer_cert.crt"
     args.signer_privkey = "output_files/signer_key.pem"
     args.print_atecc608a_type = False
+    initialize_boto(profile=args.profile, region=args.region)
     check_environment()
     
     reqs = requirements_installer('requirements.txt')

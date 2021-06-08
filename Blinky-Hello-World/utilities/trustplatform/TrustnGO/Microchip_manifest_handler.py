@@ -59,10 +59,20 @@ verification_algorithms = [
     'RS256', 'RS384', 'RS512', 'ES256', 'ES384', 'ES512'
 ]
 
+global session
+global iot
+
+def set_session(boto_session):
+    global session
+    global iot
+    session=boto_session
+    iot = session.client('iot')
+
 
 def make_thing(device_id, certificate_arn):
     """Creates an AWS-IOT "thing" and attaches the certificate """
-    client = boto3.client('iot')
+    global iot
+    client = iot
 
     try:
         response = client.create_thing(thingName=device_id)
@@ -109,7 +119,8 @@ def load_manifest_by_file(filename):
 
 def import_certificate(certificate_x509_pem, policy_name):
     """Load a certificate from the manifest into AWS-IOT and attach a policy to it"""
-    client = boto3.client('iot')
+    global session
+    client = session.client('iot')
     print("\nTry importing certificate...")
     try:
         response = client.register_certificate_without_ca(certificatePem=certificate_x509_pem)
@@ -254,13 +265,14 @@ def invokeImport(skuname, bucket, manifest, pem):
 
 
 def invoke_validate_manifest_import(manifest, cert_pem):
+    global iot
     """Checks to ensure the manifest was loaded"""
     verification_cert = x509.load_pem_x509_certificate(data=cert_pem, backend=default_backend())
 
     iterator = _ManifestIterator(manifest)
     print("\nNumber of ThingIDs to check: {}".format(iterator.index))
 
-    client = boto3.client('iot')
+    client = iot
     while iterator.index != 0:
         print("Checking the manifest item({})".format(iterator.index))
         manifest_item = ManifestItem(next(iterator), verification_cert)
@@ -279,7 +291,10 @@ def invoke_validate_manifest_import(manifest, cert_pem):
 
 
 def check_and_install_policy(policy_name='Default', policy_document=_DEFAULT_POLICY):
-    client = boto3.client('iot')
+    # client = boto3.client('iot')
+    # global session
+    global iot
+    client = iot
 
     try:
         response = client.get_policy(policyName=policy_name)
